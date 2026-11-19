@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>릴스 떡상 레이더</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0e0e10;color:#eee;font-family:Pretendard,-apple-system,sans-serif;font-size:13px}
+header{position:sticky;top:0;z-index:5;background:#151518;border-bottom:1px solid #26262b;padding:12px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.logo{font-weight:800;font-size:17px;margin-right:6px}.logo b{color:#ff4d5e}
+.sub{color:#888;font-size:12px;margin-right:auto}
+input#q{background:#202025;border:1px solid #303036;color:#eee;border-radius:8px;padding:8px 12px;width:240px;font-family:inherit}
+.bar{padding:10px 18px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid #1f1f23}
+.bar .lbl{color:#777;font-size:12px;margin-right:4px;min-width:40px}
+.chip{background:#1d1d21;border:1px solid #2c2c31;color:#bbb;border-radius:999px;padding:6px 12px;cursor:pointer;font-family:inherit;font-size:12.5px}
+.chip.on{background:#ff4d5e;border-color:#ff4d5e;color:#fff;font-weight:700}
+.chip .n{opacity:.7;margin-left:4px;font-size:11px}
+.info{padding:10px 18px;color:#888;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;padding:6px 18px 40px}
+.card{background:#17171a;border:1px solid #232327;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;color:inherit;transition:transform .12s}
+.card:hover{transform:translateY(-2px);border-color:#3a3a40}
+.th{position:relative;aspect-ratio:9/14;background:#222 center/cover no-repeat}
+.th .tl{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.6);border-radius:5px;padding:3px 7px;font-size:11px}
+.th .mx{position:absolute;top:8px;right:8px;background:#ffb020;color:#111;border-radius:5px;padding:3px 7px;font-size:11.5px;font-weight:800}
+.th .mx.lo{background:rgba(0,0,0,.6);color:#ccc;font-weight:600}
+.th .bt{position:absolute;left:0;right:0;bottom:0;padding:26px 9px 8px;background:linear-gradient(transparent,rgba(0,0,0,.85));display:flex;align-items:center;gap:6px}
+.views{font-size:19px;font-weight:800}
+.new{background:#ff4d5e;color:#fff;border-radius:4px;padding:2px 5px;font-size:10.5px;font-weight:700}
+.ago{color:#ddd;font-size:11.5px;margin-left:auto}
+.meta{padding:9px 10px 11px;display:flex;flex-direction:column;gap:5px}
+.acc{font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kw{color:#ff8a95;font-size:11px}
+.cap{color:#aaa;font-size:11.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:33px}
+.st{color:#888;font-size:11px;display:flex;gap:9px;flex-wrap:wrap}
+.empty{padding:60px;text-align:center;color:#777}
+</style></head><body>
+<header><div class="logo">릴스 <b>떡상</b> 레이더</div><div class="sub" id="upd"></div>
+<input id="q" placeholder="계정 · 캡션 · 해시태그 검색"></header>
+<div class="bar" id="catbar"><span class="lbl">카테고리</span></div>
+<div class="bar" id="kwbar" style="display:none"><span class="lbl">키워드</span></div>
+<div class="bar" id="vbar"><span class="lbl">조회수</span></div>
+<div class="bar" id="pbar"><span class="lbl">기간</span></div>
+<div class="bar" id="sbar"><span class="lbl">정렬</span></div>
+<div class="info" id="info"></div>
+<div class="grid" id="grid"></div>
+<script src="data.js"></script>
+<script>
+const DATA = window.DATA;
+const NOW = DATA.updated/1000;
+const st = {cat:'전체', kw:'전체', v:0, p:7, s:'mx', q:''};
+const V=[[0,'전체'],[10000,'1만+'],[50000,'5만+'],[100000,'10만+'],[1000000,'100만+']];
+const P=[[1,'24시간'],[3,'3일'],[7,'7일'],[14,'14일']];
+const S=[['mx','계정 평소 대비'],['vph','시간당 조회수'],['play','총 조회수'],['new','최신순']];
+const fmt=n=>n==null?'-':n>=1e8?(n/1e8).toFixed(1).replace(/\.0$/,'')+'억':n>=1e6?Math.round(n/1e4).toLocaleString()+'만':n>=1e4?(n/1e4).toFixed(1).replace(/\.0$/,'')+'만':n>=1e3?(n/1e3).toFixed(1).replace(/\.0$/,'')+'천':String(n);
+const ago=h=>h<1?'방금':h<24?Math.floor(h)+'시간 전':Math.floor(h/24)+'일 전';
+const rows = DATA.rows.map(r=>{const h=Math.max(1,(NOW-r.taken)/3600);return {...r,h,vph:r.play==null?0:r.play/h};});
+// 배수 = 이 영상 조회수 / 그 계정 최근 릴스 조회수 중앙값
+rows.forEach(r=>r.mx=(r.base&&r.play!=null)?r.play/r.base:0);
+function chips(el,list,key,cb){const b=document.getElementById(el);b.querySelectorAll('.chip').forEach(c=>c.remove());list.forEach(([v,l,n])=>{const c=document.createElement('button');c.className='chip';c.dataset.v=v;c.innerHTML=l+(n!=null?'<span class="n">'+n+'</span>':'');c.onclick=()=>{st[key]=v;cb&&cb();render();};b.appendChild(c);});}
+const CATS=Object.keys(DATA.cats);
+function kwChips(){const kb=document.getElementById('kwbar');const ks=st.cat==='전체'?[]:DATA.cats[st.cat];kb.style.display=ks.length>1?'flex':'none';chips('kwbar',[['전체','전체',rows.filter(r=>r.cat===st.cat).length],...ks.map(k=>[k,k,rows.filter(r=>r.cat===st.cat&&r.kw===k).length])],'kw');}
+chips('catbar',[['전체','전체',rows.length],...CATS.map(c=>[c,c,rows.filter(r=>r.cat===c).length])],'cat',()=>{st.kw='전체';kwChips();});
+kwChips();chips('vbar',V,'v');chips('pbar',P,'p');chips('sbar',S,'s');
+document.getElementById('q').oninput=e=>{st.q=e.target.value.trim().toLowerCase();render();};
+document.getElementById('upd').textContent='업데이트 '+new Date(DATA.updated).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+' · '+DATA.note;
+function render(){
+  for(const [el,key] of [['catbar','cat'],['kwbar','kw'],['vbar','v'],['pbar','p'],['sbar','s']])document.querySelectorAll('#'+el+' .chip').forEach(c=>c.classList.toggle('on',String(st[key])===c.dataset.v));
+  let list=rows.filter(r=>(st.cat==='전체'||r.cat===st.cat)&&(st.kw==='전체'||r.kw===st.kw)&&(r.play||0)>=st.v&&r.h<=st.p*24&&(!st.q||(r.user+' '+r.cap+' '+(r.full||'')).toLowerCase().includes(st.q)));
+  const by={vph:r=>-r.vph,mx:r=>-r.mx,play:r=>-(r.play||0),new:r=>r.h}[st.s];list.sort((a,b)=>by(a)-by(b));
+  document.getElementById('info').textContent=list.length+'개 영상 · 오른쪽 위 배지(예: 3.2x) = 그 계정 최근 릴스 평소 조회수(중앙값) 대비 몇 배 터졌는지 · 카드를 누르면 인스타에서 열려요';
+  const g=document.getElementById('grid');
+  if(!list.length){g.innerHTML='<div class="empty">이 조건에 맞는 영상이 없어요. 기간을 늘려보세요.</div>';return;}
+  g.innerHTML=list.map(r=>`<a class="card" href="https://www.instagram.com/reel/${r.code}/" target="_blank">
+   <div class="th" style="background-image:url('${(window.__TH||{})[r.code]||''}')"><span class="tl">${r.cat}</span>
+   <span class="mx ${r.mx<1.5?'lo':''}">${r.mx?r.mx.toFixed(1)+'x':'-'}</span>
+   <div class="bt"><span class="views">${fmt(r.play)}</span>${r.h<=24?'<span class="new">새글</span>':''}<span class="ago">${ago(r.h)}</span></div></div>
+   <div class="meta"><div class="acc">@${r.user}${r.verified?' ✔':''}</div><div class="kw">평소 ${fmt(r.base)} → ${fmt(r.play)}</div>
+   <div class="cap">${(r.cap||'').replace(/[<>&]/g,'')}</div>
+   <div class="st"><span>시간당 ${fmt(Math.round(r.vph))}</span><span>♥ ${r.hidden?'비공개':fmt(r.likes)}</span><span>💬 ${fmt(r.comments)}</span>${r.dur?`<span>${Math.round(r.dur)}초</span>`:''}</div></div></a>`).join('');
+}
+render();
+let __t;window.__thLoaded=()=>{clearTimeout(__t);__t=setTimeout(render,150);};
+['thumbs1.js','thumbs2.js','thumbs3.js','thumbs4.js'].forEach(f=>{const s=document.createElement('script');s.src=f;s.async=true;document.body.appendChild(s);});
+</script></body></html>
